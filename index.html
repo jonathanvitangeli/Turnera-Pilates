@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Turnera Pilates</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Prata&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Estudio de Pilates</p>
+        <h1>Reservá tu clase en segundos</h1>
+        <p class="hero-text">
+          Elegí profesor, fecha y horario disponible. La turnera guarda tus reservas en este navegador para que puedas administrarlas fácilmente.
+        </p>
+      </div>
+      <div class="hero-card">
+        <p class="hero-card-label">Reserva activa</p>
+        <h2 id="next-booking-title">Todavía no hay turnos</h2>
+        <p id="next-booking-detail">Seleccioná un profesor y confirmá tu primera clase.</p>
+      </div>
+    </header>
+
+    <main class="dashboard">
+      <section class="panel booking-panel">
+        <div class="panel-heading">
+          <p class="section-kicker">Paso 1</p>
+          <h2>Elegí tu clase</h2>
+        </div>
+
+        <div class="filters">
+          <label class="field">
+            <span>Profesor</span>
+            <select id="teacher-select"></select>
+          </label>
+
+          <label class="field">
+            <span>Fecha</span>
+            <input id="date-input" type="date">
+          </label>
+        </div>
+
+        <section class="teacher-spotlight" id="teacher-spotlight"></section>
+
+        <div class="panel-heading slots-heading">
+          <p class="section-kicker">Paso 2</p>
+          <h2>Horarios disponibles</h2>
+        </div>
+
+        <div id="slots-grid" class="slots-grid"></div>
+      </section>
+
+      <aside class="panel summary-panel">
+        <div class="panel-heading">
+          <p class="section-kicker">Paso 3</p>
+          <h2>Confirmación</h2>
+        </div>
+
+        <div id="selection-summary" class="selection-summary">
+          <p>Seleccioná un horario para ver el resumen de la reserva.</p>
+        </div>
+
+        <div id="status-banner" class="status-banner" aria-live="polite"></div>
+        <button id="book-button" class="primary-button" disabled>Confirmar turno</button>
+
+        <div class="panel-heading reservations-heading">
+          <p class="section-kicker">Mis turnos</p>
+          <h2>Reservas guardadas</h2>
+        </div>
+        <div id="bookings-list" class="bookings-list"></div>
+      </aside>
+    </main>
+  </div>
+
+  <template id="booking-card-template">
+    <article class="booking-card">
+      <div>
+        <h3></h3>
+        <p class="booking-meta"></p>
+      </div>
+      <button class="secondary-button" type="button">Cancelar</button>
+    </article>
+  </template>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="script.js"></script>
+</body>
+</html>
