@@ -4,6 +4,7 @@ const path = require("path");
 const { handleApiRequest } = require("./backend");
 
 const rootDir = __dirname;
+const publicDir = path.join(rootDir, "public");
 const port = Number(process.env.PORT || 3000);
 
 const mimeTypes = {
@@ -23,9 +24,9 @@ function sendText(res, statusCode, message) {
 function serveStaticFile(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const relativePath = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
-  const filePath = path.resolve(rootDir, relativePath);
+  const filePath = path.resolve(publicDir, relativePath);
 
-  if (!filePath.startsWith(rootDir)) {
+  if (!filePath.startsWith(publicDir)) {
     sendText(res, 403, "Forbidden");
     return;
   }

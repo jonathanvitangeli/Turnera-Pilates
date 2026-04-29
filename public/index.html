@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Turnera Pilates</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Prata&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Estudio de Pilates</p>
+        <h1>Reserva tu clase en segundos</h1>
+        <p class="hero-text">
+          Crea tu usuario, inicia sesion y reserva con tu profesor preferido. Los administradores pueden ver y gestionar todos los turnos.
+        </p>
+      </div>
+      <div class="hero-card">
+        <p class="hero-card-label">Tu cuenta</p>
+        <h2 id="account-title">Sin sesion iniciada</h2>
+        <p id="account-detail">Registrate o inicia sesion para empezar a reservar.</p>
+      </div>
+    </header>
+
+    <section id="auth-view" class="panel auth-panel">
+      <div class="auth-grid">
+        <form id="register-form" class="auth-form">
+          <div class="panel-heading">
+            <p class="section-kicker">Acceso</p>
+            <h2>Crear cuenta</h2>
+          </div>
+          <label class="field">
+            <span>Nombre</span>
+            <input id="register-name" name="name" type="text" required>
+          </label>
+          <label class="field">
+            <span>Email</span>
+            <input id="register-email" name="email" type="email" required>
+          </label>
+          <label class="field">
+            <span>Contrasena</span>
+            <input id="register-password" name="password" type="password" minlength="6" required>
+          </label>
+          <button class="secondary-button auth-button" type="submit">Registrarme</button>
+        </form>
+
+        <form id="login-form" class="auth-form">
+          <div class="panel-heading">
+            <p class="section-kicker">Acceso</p>
+            <h2>Iniciar sesion</h2>
+          </div>
+          <label class="field">
+            <span>Email</span>
+            <input id="login-email" name="email" type="email" required>
+          </label>
+          <label class="field">
+            <span>Contrasena</span>
+            <input id="login-password" name="password" type="password" required>
+          </label>
+          <button class="primary-button auth-button" type="submit">Entrar</button>
+        </form>
+      </div>
+    </section>
+
+    <main id="app-view" class="dashboard" hidden>
+      <section class="panel booking-panel">
+        <div class="panel-heading">
+          <p class="section-kicker">Paso 1</p>
+          <h2>Elegi tu clase</h2>
+        </div>
+
+        <div class="filters">
+          <label class="field">
+            <span>Profesor</span>
+            <select id="teacher-select"></select>
+          </label>
+
+          <label class="field">
+            <span>Fecha</span>
+            <input id="date-input" type="date">
+          </label>
+        </div>
+
+        <section class="teacher-spotlight" id="teacher-spotlight"></section>
+
+        <div class="panel-heading slots-heading">
+          <p class="section-kicker">Paso 2</p>
+          <h2>Horarios disponibles</h2>
+        </div>
+
+        <div id="slots-grid" class="slots-grid"></div>
+      </section>
+
+      <aside class="panel summary-panel">
+        <div class="panel-heading">
+          <p class="section-kicker">Paso 3</p>
+          <h2>Confirmacion</h2>
+        </div>
+
+        <div id="selection-summary" class="selection-summary">
+          <p>Selecciona un horario para ver el resumen de la reserva.</p>
+        </div>
+
+        <div id="status-banner" class="status-banner" aria-live="polite"></div>
+        <button id="book-button" class="primary-button" disabled>Confirmar turno</button>
+
+        <div class="session-actions">
+          <div id="viewer-badge" class="viewer-badge">Vista publica</div>
+          <button id="logout-button" class="secondary-button" type="button" hidden>Cerrar sesion</button>
+        </div>
+
+        <div class="panel-heading reservations-heading">
+          <p class="section-kicker">Mis turnos</p>
+          <h2 id="bookings-heading">Reservas guardadas</h2>
+        </div>
+        <div id="bookings-list" class="bookings-list"></div>
+      </aside>
+    </main>
+  </div>
+
+  <template id="booking-card-template">
+    <article class="booking-card">
+      <div>
+        <h3></h3>
+        <p class="booking-meta"></p>
+      </div>
+      <button class="secondary-button" type="button">Cancelar</button>
+    </article>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
