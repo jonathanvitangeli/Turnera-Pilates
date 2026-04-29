@@ -114,6 +114,29 @@ h1 {
   gap: 24px;
 }
 
+.auth-panel {
+  margin-bottom: 24px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.auth-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-button {
+  margin-top: 8px;
+}
+
 .panel {
   padding: 28px;
 }
@@ -308,6 +331,23 @@ input {
   gap: 12px;
 }
 
+.session-actions {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.viewer-badge {
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
 .booking-card {
   padding: 18px;
   display: grid;
@@ -339,7 +379,8 @@ input {
 
 @media (max-width: 920px) {
   .hero,
-  .dashboard {
+  .dashboard,
+  .auth-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -363,5 +404,38 @@ input {
 
   h1 {
     font-size: 2.5rem;
+  }
+
+  .session-actions,
+  .booking-card {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .session-actions {
+    justify-content: stretch;
+  }
+
+  .secondary-button,
+  .primary-button,
+  .auth-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-copy,
+  .hero-card,
+  .panel {
+    padding: 18px;
+  }
+
+  .slots-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-topline {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

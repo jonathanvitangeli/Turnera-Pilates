@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Turnera Pilates</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Prata&display=swap" rel="stylesheet">
@@ -14,23 +15,63 @@
     <header class="hero">
       <div class="hero-copy">
         <p class="eyebrow">Estudio de Pilates</p>
-        <h1>Reservá tu clase en segundos</h1>
+        <h1>Reserva tu clase en segundos</h1>
         <p class="hero-text">
-          Elegí profesor, fecha y horario disponible. La turnera guarda tus reservas en este navegador para que puedas administrarlas fácilmente.
+          Crea tu usuario, inicia sesion y reserva con tu profesor preferido. Los administradores pueden ver y gestionar todos los turnos.
         </p>
       </div>
       <div class="hero-card">
-        <p class="hero-card-label">Reserva activa</p>
-        <h2 id="next-booking-title">Todavía no hay turnos</h2>
-        <p id="next-booking-detail">Seleccioná un profesor y confirmá tu primera clase.</p>
+        <p class="hero-card-label">Tu cuenta</p>
+        <h2 id="account-title">Sin sesion iniciada</h2>
+        <p id="account-detail">Registrate o inicia sesion para empezar a reservar.</p>
       </div>
     </header>
 
-    <main class="dashboard">
+    <section id="auth-view" class="panel auth-panel">
+      <div class="auth-grid">
+        <form id="register-form" class="auth-form">
+          <div class="panel-heading">
+            <p class="section-kicker">Acceso</p>
+            <h2>Crear cuenta</h2>
+          </div>
+          <label class="field">
+            <span>Nombre</span>
+            <input id="register-name" name="name" type="text" required>
+          </label>
+          <label class="field">
+            <span>Email</span>
+            <input id="register-email" name="email" type="email" required>
+          </label>
+          <label class="field">
+            <span>Contrasena</span>
+            <input id="register-password" name="password" type="password" minlength="6" required>
+          </label>
+          <button class="secondary-button auth-button" type="submit">Registrarme</button>
+        </form>
+
+        <form id="login-form" class="auth-form">
+          <div class="panel-heading">
+            <p class="section-kicker">Acceso</p>
+            <h2>Iniciar sesion</h2>
+          </div>
+          <label class="field">
+            <span>Email</span>
+            <input id="login-email" name="email" type="email" required>
+          </label>
+          <label class="field">
+            <span>Contrasena</span>
+            <input id="login-password" name="password" type="password" required>
+          </label>
+          <button class="primary-button auth-button" type="submit">Entrar</button>
+        </form>
+      </div>
+    </section>
+
+    <main id="app-view" class="dashboard" hidden>
       <section class="panel booking-panel">
         <div class="panel-heading">
           <p class="section-kicker">Paso 1</p>
-          <h2>Elegí tu clase</h2>
+          <h2>Elegi tu clase</h2>
         </div>
 
         <div class="filters">
@@ -58,19 +99,24 @@
       <aside class="panel summary-panel">
         <div class="panel-heading">
           <p class="section-kicker">Paso 3</p>
-          <h2>Confirmación</h2>
+          <h2>Confirmacion</h2>
         </div>
 
         <div id="selection-summary" class="selection-summary">
-          <p>Seleccioná un horario para ver el resumen de la reserva.</p>
+          <p>Selecciona un horario para ver el resumen de la reserva.</p>
         </div>
 
         <div id="status-banner" class="status-banner" aria-live="polite"></div>
         <button id="book-button" class="primary-button" disabled>Confirmar turno</button>
 
+        <div class="session-actions">
+          <div id="viewer-badge" class="viewer-badge">Vista publica</div>
+          <button id="logout-button" class="secondary-button" type="button" hidden>Cerrar sesion</button>
+        </div>
+
         <div class="panel-heading reservations-heading">
           <p class="section-kicker">Mis turnos</p>
-          <h2>Reservas guardadas</h2>
+          <h2 id="bookings-heading">Reservas guardadas</h2>
         </div>
         <div id="bookings-list" class="bookings-list"></div>
       </aside>
@@ -87,7 +133,6 @@
     </article>
   </template>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
 </body>
 </html>

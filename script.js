@@ -14,7 +14,7 @@ const teachers = [
     id: "martin",
     name: "Martin Sosa",
     specialty: "Pilates mat",
-    bio: "Ideal para fortalecer el core y mejorar flexibilidad con clases dinámicas y progresivas.",
+    bio: "Ideal para fortalecer el core y mejorar flexibilidad con clases dinamicas y progresivas.",
     schedule: {
       2: ["07:30", "08:30", "18:30", "19:30"],
       4: ["09:00", "10:00", "17:30", "18:30"],
@@ -24,8 +24,8 @@ const teachers = [
   {
     id: "camila",
     name: "Camila Herrera",
-    specialty: "Pilates terapéutico",
-    bio: "Sesiones suaves y personalizadas para recuperación, bienestar y control corporal.",
+    specialty: "Pilates terapeutico",
+    bio: "Sesiones suaves y personalizadas para recuperacion, bienestar y control corporal.",
     schedule: {
       1: ["14:00", "15:00", "16:00"],
       2: ["11:00", "12:00", "13:00"],
@@ -44,17 +44,25 @@ const statusBanner = document.getElementById("status-banner");
 const bookButton = document.getElementById("book-button");
 const bookingsList = document.getElementById("bookings-list");
 const bookingTemplate = document.getElementById("booking-card-template");
-const nextBookingTitle = document.getElementById("next-booking-title");
-const nextBookingDetail = document.getElementById("next-booking-detail");
+const accountTitle = document.getElementById("account-title");
+const accountDetail = document.getElementById("account-detail");
+const viewerBadge = document.getElementById("viewer-badge");
+const bookingsHeading = document.getElementById("bookings-heading");
+const logoutButton = document.getElementById("logout-button");
+const registerForm = document.getElementById("register-form");
+const loginForm = document.getElementById("login-form");
+const authView = document.getElementById("auth-view");
+const appView = document.getElementById("app-view");
 
 const state = {
   selectedTeacherId: teachers[0].id,
   selectedDate: "",
   selectedTime: "",
   bookings: [],
+  slotCounts: [],
   loading: false,
-  supabase: null,
-  hasSupabaseConfig: false
+  me: null,
+  apiEnabled: true
 };
 
 function setStatus(message, type = "") {
@@ -102,8 +110,21 @@ function getDaySlots(teacher, dateString) {
 
 function isSlotBooked(teacherId, date, time) {
   return state.bookings.some((booking) =>
-    booking.teacherId === teacherId && booking.date === date && booking.time === time
+    booking.teacherId === teacherId &&
+    booking.date === date &&
+    booking.time === time &&
+    booking.userId === state.me?.id
   );
+}
+
+function getSlotCount(teacherId, date, time) {
+  const slotInfo = state.slotCounts.find((slot) =>
+    slot.teacherId === teacherId &&
+    slot.date === date &&
+    slot.time === time
+  );
+
+  return slotInfo?.count ?? 0;
 }
 
 function renderTeacherSpotlight() {
@@ -120,7 +141,7 @@ function renderTeacherSpotlight() {
       <span class="teacher-badge">${teacher.specialty}</span>
     </div>
     <p>${teacher.bio}</p>
-    <p><strong>Días disponibles:</strong> ${availableDays}</p>
+    <p><strong>Dias disponibles:</strong> ${availableDays}</p>
   `;
 }
 
@@ -129,7 +150,7 @@ function renderSlots() {
   const slots = getDaySlots(teacher, state.selectedDate);
 
   if (!slots.length) {
-    slotsGrid.innerHTML = `<p class="empty-state">Ese profesor no atiende en la fecha elegida. Probá con otro día.</p>`;
+    slotsGrid.innerHTML = `<p class="empty-state">Ese profesor no atiende en la fecha elegida. Proba con otro dia.</p>`;
     state.selectedTime = "";
     updateSelectionSummary();
     return;
@@ -138,11 +159,13 @@ function renderSlots() {
   slotsGrid.innerHTML = slots
     .map((time) => {
       const alreadyBooked = isSlotBooked(teacher.id, state.selectedDate, time);
+      const slotCount = getSlotCount(teacher.id, state.selectedDate, time);
+      const full = slotCount >= 5;
       const selected = state.selectedTime === time;
       const classes = [
         "slot-button",
         selected ? "selected" : "",
-        alreadyBooked ? "disabled" : ""
+        (alreadyBooked || full) ? "disabled" : ""
       ].filter(Boolean).join(" ");
 
       return `
@@ -150,10 +173,10 @@ function renderSlots() {
           type="button"
           class="${classes}"
           data-time="${time}"
-          ${alreadyBooked || state.loading ? "disabled" : ""}
+          ${(alreadyBooked || full || state.loading) ? "disabled" : ""}
         >
           <strong>${time}</strong>
-          <span>${alreadyBooked ? "Reservado" : "Disponible"}</span>
+          <span>${alreadyBooked ? "Ya reservado por ti" : full ? "Completo" : `${slotCount}/5 reservados`}</span>
         </button>
       `;
     })
@@ -164,8 +187,14 @@ function updateSelectionSummary() {
   const teacher = getSelectedTeacher();
   const hasSelection = Boolean(state.selectedDate && state.selectedTime);
 
+  if (!state.me) {
+    selectionSummary.innerHTML = `<p>Inicia sesion para poder confirmar turnos.</p>`;
+    bookButton.disabled = true;
+    return;
+  }
+
   if (!hasSelection) {
-    selectionSummary.innerHTML = `<p>Seleccioná un horario disponible para ver el resumen de tu clase.</p>`;
+    selectionSummary.innerHTML = `<p>Selecciona un horario disponible para ver el resumen de tu clase.</p>`;
     bookButton.disabled = true;
     return;
   }
@@ -177,15 +206,39 @@ function updateSelectionSummary() {
     <p><strong>Horario:</strong> ${state.selectedTime}</p>
     <p><strong>Especialidad:</strong> ${teacher.specialty}</p>
   `;
-  bookButton.disabled = state.loading || !state.hasSupabaseConfig;
+  bookButton.disabled = state.loading || !state.apiEnabled;
+}
+
+function renderSession() {
+  if (!state.me) {
+    accountTitle.textContent = "Sin sesion iniciada";
+    accountDetail.textContent = "Registrate o inicia sesion para empezar a reservar.";
+    viewerBadge.textContent = "Vista publica";
+    bookingsHeading.textContent = "Reservas guardadas";
+    logoutButton.hidden = true;
+    authView.hidden = false;
+    appView.hidden = true;
+    return;
+  }
+
+  accountTitle.textContent = state.me.role === "admin"
+    ? `${state.me.name} (admin)`
+    : state.me.name;
+  accountDetail.textContent = state.me.role === "admin"
+    ? "Tienes permisos de administrador y puedes ver todas las reservas."
+    : "Puedes reservar y gestionar solo tus propios turnos.";
+  viewerBadge.textContent = state.me.role === "admin" ? "Vista admin" : "Vista usuario";
+  bookingsHeading.textContent = state.me.role === "admin" ? "Todas las reservas" : "Mis reservas";
+  logoutButton.hidden = false;
+  authView.hidden = true;
+  appView.hidden = false;
 }
 
 function renderBookings() {
   bookingsList.innerHTML = "";
 
   if (!state.bookings.length) {
-    bookingsList.innerHTML = `<p class="empty-state">Todavía no hay reservas guardadas.</p>`;
-    updateNextBookingCard();
+    bookingsList.innerHTML = `<p class="empty-state">Todavia no hay reservas guardadas.</p>`;
     return;
   }
 
@@ -196,8 +249,13 @@ function renderBookings() {
   sortedBookings.forEach((booking) => {
     const fragment = bookingTemplate.content.cloneNode(true);
     fragment.querySelector("h3").textContent = booking.teacherName;
+
+    const ownerPart = booking.userName
+      ? ` · ${booking.userName}${booking.userEmail ? ` (${booking.userEmail})` : ""}`
+      : "";
+
     fragment.querySelector(".booking-meta").textContent =
-      `${formatDate(booking.date)} a las ${booking.time} · ${booking.specialty}`;
+      `${formatDate(booking.date)} a las ${booking.time} · ${booking.specialty}${ownerPart}`;
 
     fragment.querySelector("button").addEventListener("click", async () => {
       await deleteBooking(booking.id);
@@ -205,35 +263,55 @@ function renderBookings() {
 
     bookingsList.appendChild(fragment);
   });
-
-  updateNextBookingCard();
-}
-
-function updateNextBookingCard() {
-  if (!state.bookings.length) {
-    nextBookingTitle.textContent = "Todavía no hay turnos";
-    nextBookingDetail.textContent = "Configurá Supabase y confirmá tu primera clase.";
-    return;
-  }
-
-  const nextBooking = [...state.bookings].sort((a, b) =>
-    `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)
-  )[0];
-
-  nextBookingTitle.textContent = `${nextBooking.teacherName} · ${nextBooking.time}`;
-  nextBookingDetail.textContent = `${formatDate(nextBooking.date)} · ${nextBooking.specialty}`;
 }
 
 function setLoading(isLoading) {
   state.loading = isLoading;
   teacherSelect.disabled = isLoading;
   dateInput.disabled = isLoading;
-  bookButton.disabled = isLoading || !state.selectedTime || !state.hasSupabaseConfig;
+  bookButton.disabled = isLoading || !state.selectedTime || !state.apiEnabled || !state.me;
+}
+
+async function request(path, options = {}) {
+  const response = await fetch(path, {
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers ?? {})
+    },
+    ...options
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(payload?.error || "Ocurrio un error inesperado.");
+  }
+
+  return payload;
+}
+
+async function loadSession() {
+  try {
+    const payload = await request("/api/me");
+    state.me = payload.user;
+  } catch (error) {
+    state.me = null;
+  }
+
+  renderSession();
+  updateSelectionSummary();
 }
 
 async function fetchBookings() {
-  if (!state.supabase) {
-    setStatus("Completá tu archivo `.env` con `SUPABASE_URL` y `SUPABASE_ANON_KEY` para activar la base en Supabase.", "is-error");
+  if (!state.me) {
+    state.bookings = [];
+    state.apiEnabled = true;
     renderBookings();
     renderSlots();
     updateSelectionSummary();
@@ -241,109 +319,149 @@ async function fetchBookings() {
   }
 
   setLoading(true);
-  setStatus("Conectando con Supabase...");
+  setStatus("Conectando con Neon...");
 
-  const { data, error } = await state.supabase
-    .from("bookings")
-    .select("id, teacher_id, teacher_name, specialty, booking_date, booking_time")
-    .order("booking_date", { ascending: true })
-    .order("booking_time", { ascending: true });
-
-  setLoading(false);
-
-  if (error) {
-    setStatus(
-      "No pude leer la tabla `bookings`. Revisá que hayas ejecutado `supabase-schema.sql` y que las políticas permitan `select`.",
-      "is-error"
-    );
+  try {
+    const payload = await request("/api/bookings");
+    state.bookings = payload.bookings;
+    state.slotCounts = payload.slotCounts || [];
+    state.apiEnabled = true;
+    clearStatus();
+  } catch (error) {
+    state.bookings = [];
+    state.slotCounts = [];
+    state.apiEnabled = false;
+    setStatus(error.message, "is-error");
+  } finally {
+    setLoading(false);
     renderBookings();
     renderSlots();
     updateSelectionSummary();
-    return;
   }
-
-  state.bookings = data.map(mapBookingRow);
-  clearStatus();
-  renderBookings();
-  renderSlots();
-  updateSelectionSummary();
-}
-
-function mapBookingRow(row) {
-  return {
-    id: row.id,
-    teacherId: row.teacher_id,
-    teacherName: row.teacher_name,
-    specialty: row.specialty,
-    date: row.booking_date,
-    time: row.booking_time
-  };
 }
 
 async function createBooking() {
-  if (!state.supabase || !state.selectedDate || !state.selectedTime) {
+  if (!state.selectedDate || !state.selectedTime || !state.apiEnabled || !state.me) {
     return;
   }
 
   const teacher = getSelectedTeacher();
 
   if (isSlotBooked(teacher.id, state.selectedDate, state.selectedTime)) {
-    setStatus("Ese horario ya fue reservado. Elegí otro turno disponible.", "is-error");
+    setStatus("Ya tienes una reserva para ese horario. Elige otro turno disponible.", "is-error");
+    renderSlots();
+    updateSelectionSummary();
+    return;
+  }
+
+  if (getSlotCount(teacher.id, state.selectedDate, state.selectedTime) >= 5) {
+    setStatus("Ese horario ya alcanzo el cupo maximo de 5 personas.", "is-error");
     renderSlots();
     updateSelectionSummary();
     return;
   }
 
   setLoading(true);
-  setStatus("Guardando turno en Supabase...");
+  setStatus("Guardando turno en Neon...");
 
-  const { error } = await state.supabase
-    .from("bookings")
-    .insert({
-      teacher_id: teacher.id,
-      teacher_name: teacher.name,
-      specialty: teacher.specialty,
-      booking_date: state.selectedDate,
-      booking_time: state.selectedTime
+  try {
+    await request("/api/bookings", {
+      method: "POST",
+      body: JSON.stringify({
+        teacherId: teacher.id,
+        teacherName: teacher.name,
+        specialty: teacher.specialty,
+        date: state.selectedDate,
+        time: state.selectedTime
+      })
     });
 
-  if (error) {
+    state.selectedTime = "";
+    await fetchBookings();
+    setStatus("Turno confirmado y sincronizado con Neon.", "is-success");
+  } catch (error) {
     setLoading(false);
-    setStatus(
-      "No se pudo guardar el turno. Si el horario ya existe en la base, la restricción única va a bloquear el insert.",
-      "is-error"
-    );
+    setStatus(error.message, "is-error");
     renderSlots();
     updateSelectionSummary();
-    return;
   }
-
-  state.selectedTime = "";
-  await fetchBookings();
-  setStatus("Turno confirmado y sincronizado con Supabase.", "is-success");
 }
 
 async function deleteBooking(id) {
-  if (!state.supabase) {
-    return;
-  }
-
   setLoading(true);
   setStatus("Cancelando turno...");
 
-  const { error } = await state.supabase
-    .from("bookings")
-    .delete()
-    .eq("id", id);
-
-  if (error) {
+  try {
+    await request(`/api/bookings/${id}`, { method: "DELETE" });
+    await fetchBookings();
+    setStatus("Turno cancelado correctamente.", "is-success");
+  } catch (error) {
     setLoading(false);
-    setStatus("No pude cancelar el turno en Supabase. Revisá la policy de `delete`.", "is-error");
-    return;
+    setStatus(error.message, "is-error");
+  }
+}
+
+async function handleRegister(event) {
+  event.preventDefault();
+  clearStatus();
+
+  const formData = new FormData(registerForm);
+  const payload = Object.fromEntries(formData.entries());
+
+  try {
+    await request("/api/register", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    registerForm.reset();
+    await loadSession();
+    await fetchBookings();
+    setStatus("Cuenta creada e inicio de sesion correcto.", "is-success");
+  } catch (error) {
+    const message = error.message === "Credenciales invalidas."
+      ? "Credenciales invalidas. Si recreaste las tablas o cambiaste la configuracion, vuelve a registrarte."
+      : error.message;
+    setStatus(message, "is-error");
+  }
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  clearStatus();
+
+  const formData = new FormData(loginForm);
+  const payload = Object.fromEntries(formData.entries());
+
+  try {
+    await request("/api/login", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    loginForm.reset();
+    await loadSession();
+    await fetchBookings();
+    setStatus("Sesion iniciada correctamente.", "is-success");
+  } catch (error) {
+    setStatus(error.message, "is-error");
+  }
+}
+
+async function handleLogout() {
+  try {
+    await request("/api/logout", { method: "POST" });
+  } catch (error) {
+    // Ignorar para limpiar estado local igualmente.
   }
 
-  await fetchBookings();
-  setStatus("Turno cancelado correctamente.", "is-success");
+  state.me = null;
+  state.selectedTime = "";
+  state.bookings = [];
+  state.slotCounts = [];
+  renderSession();
+  renderBookings();
+  renderSlots();
+  updateSelectionSummary();
+  setStatus("Sesion cerrada.", "is-success");
 }
 
 function formatDate(dateString) {
@@ -387,36 +505,20 @@ slotsGrid.addEventListener("click", (event) => {
   updateSelectionSummary();
 });
 
-bookButton.addEventListener("click", async () => {
-  await createBooking();
-});
-
-async function loadSupabase() {
-  const response = await fetch("/config");
-
-  if (!response.ok) {
-    throw new Error("No se pudo leer la configuración del servidor.");
-  }
-
-  const config = await response.json();
-  const hasConfig = Boolean(config.url) && Boolean(config.anonKey);
-
-  state.hasSupabaseConfig = hasConfig;
-  state.supabase = hasConfig ? window.supabase.createClient(config.url, config.anonKey) : null;
-}
+bookButton.addEventListener("click", createBooking);
+registerForm.addEventListener("submit", handleRegister);
+loginForm.addEventListener("submit", handleLogin);
+logoutButton.addEventListener("click", handleLogout);
 
 async function init() {
   renderTeacherOptions();
   setDefaultDate();
   renderTeacherSpotlight();
   renderSlots();
+  renderSession();
   updateSelectionSummary();
   renderBookings();
-  try {
-    await loadSupabase();
-  } catch (error) {
-    setStatus("No pude cargar la configuración de Supabase desde el servidor local.", "is-error");
-  }
+  await loadSession();
   await fetchBookings();
 }
 
