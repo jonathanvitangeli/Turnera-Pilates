@@ -37,3 +37,17 @@ create index if not exists bookings_user_id_idx
 
 create index if not exists bookings_date_time_idx
   on public.bookings (booking_date, booking_time);
+
+create table if not exists public.payments (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  package_name text not null,
+  class_count integer not null check (class_count > 0),
+  amount numeric(10, 2) not null check (amount >= 0),
+  payment_method text not null default 'simulado',
+  payment_status text not null default 'approved' check (payment_status in ('approved', 'pending', 'rejected')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists payments_user_id_idx
+  on public.payments (user_id);

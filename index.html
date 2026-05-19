@@ -28,8 +28,25 @@
     </header>
 
     <section id="auth-view" class="panel auth-panel">
-      <div class="auth-grid">
-        <form id="register-form" class="auth-form">
+      <div class="auth-stack">
+        <form id="login-form" class="auth-form">
+          <div class="panel-heading">
+            <p class="section-kicker">Acceso</p>
+            <h2>Iniciar sesion</h2>
+          </div>
+          <label class="field">
+            <span>Email</span>
+            <input id="login-email" name="email" type="email" required>
+          </label>
+          <label class="field">
+            <span>Contrasena</span>
+            <input id="login-password" name="password" type="password" required>
+          </label>
+          <button class="primary-button auth-button" type="submit">Entrar</button>
+          <button id="show-register-button" class="auth-switch" type="button">No tengo cuenta, quiero registrarme</button>
+        </form>
+
+        <form id="register-form" class="auth-form" hidden>
           <div class="panel-heading">
             <p class="section-kicker">Acceso</p>
             <h2>Crear cuenta</h2>
@@ -46,23 +63,8 @@
             <span>Contrasena</span>
             <input id="register-password" name="password" type="password" minlength="6" required>
           </label>
-          <button class="secondary-button auth-button" type="submit">Registrarme</button>
-        </form>
-
-        <form id="login-form" class="auth-form">
-          <div class="panel-heading">
-            <p class="section-kicker">Acceso</p>
-            <h2>Iniciar sesion</h2>
-          </div>
-          <label class="field">
-            <span>Email</span>
-            <input id="login-email" name="email" type="email" required>
-          </label>
-          <label class="field">
-            <span>Contrasena</span>
-            <input id="login-password" name="password" type="password" required>
-          </label>
-          <button class="primary-button auth-button" type="submit">Entrar</button>
+          <button class="secondary-button auth-button register-button" type="submit">Registrarme</button>
+          <button id="show-login-button" class="auth-switch" type="button">Ya tengo cuenta, quiero iniciar sesion</button>
         </form>
       </div>
     </section>

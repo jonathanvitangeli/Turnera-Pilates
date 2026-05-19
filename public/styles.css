@@ -219,6 +219,51 @@ input {
   gap: 12px;
 }
 
+.payment-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.payment-option {
+  padding: 18px 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.payment-option strong,
+.payment-option span,
+.payment-option small {
+  display: block;
+}
+
+.payment-option span,
+.payment-option small {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.payment-option.selected {
+  background: linear-gradient(180deg, #d98059 0%, #c96f4a 100%);
+  color: #fff;
+  box-shadow: 0 18px 26px rgba(201, 111, 74, 0.28);
+}
+
+.payment-option.selected span,
+.payment-option.selected small {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.pay-button {
+  margin-top: 0;
+}
+
 .slot-button,
 .primary-button,
 .secondary-button {
@@ -271,6 +316,35 @@ input {
 .selection-summary {
   padding: 20px;
   min-height: 130px;
+}
+
+.credits-banner {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255, 248, 240, 0.92);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.credits-banner p {
+  margin: 0;
+}
+
+.credits-banner p + p {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.credits-banner.is-positive {
+  border-color: rgba(47, 125, 91, 0.24);
+  background: rgba(234, 247, 240, 0.96);
+}
+
+.credits-banner.is-warning {
+  border-color: rgba(159, 82, 50, 0.28);
+  background: rgba(251, 235, 226, 0.96);
 }
 
 .status-banner {
@@ -381,6 +455,10 @@ input {
   .hero,
   .dashboard,
   .auth-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .payment-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -28,8 +28,25 @@
     </header>
 
     <section id="auth-view" class="panel auth-panel">
-      <div class="auth-grid">
-        <form id="register-form" class="auth-form">
+      <div class="auth-stack">
+        <form id="login-form" class="auth-form">
+          <div class="panel-heading">
+            <p class="section-kicker">Acceso</p>
+            <h2>Iniciar sesion</h2>
+          </div>
+          <label class="field">
+            <span>Email</span>
+            <input id="login-email" name="email" type="email" required>
+          </label>
+          <label class="field">
+            <span>Contrasena</span>
+            <input id="login-password" name="password" type="password" required>
+          </label>
+          <button class="primary-button auth-button" type="submit">Entrar</button>
+          <button id="show-register-button" class="auth-switch" type="button">No tengo cuenta, quiero registrarme</button>
+        </form>
+
+        <form id="register-form" class="auth-form" hidden>
           <div class="panel-heading">
             <p class="section-kicker">Acceso</p>
             <h2>Crear cuenta</h2>
@@ -46,23 +63,8 @@
             <span>Contrasena</span>
             <input id="register-password" name="password" type="password" minlength="6" required>
           </label>
-          <button class="secondary-button auth-button" type="submit">Registrarme</button>
-        </form>
-
-        <form id="login-form" class="auth-form">
-          <div class="panel-heading">
-            <p class="section-kicker">Acceso</p>
-            <h2>Iniciar sesion</h2>
-          </div>
-          <label class="field">
-            <span>Email</span>
-            <input id="login-email" name="email" type="email" required>
-          </label>
-          <label class="field">
-            <span>Contrasena</span>
-            <input id="login-password" name="password" type="password" required>
-          </label>
-          <button class="primary-button auth-button" type="submit">Entrar</button>
+          <button class="secondary-button auth-button register-button" type="submit">Registrarme</button>
+          <button id="show-login-button" class="auth-switch" type="button">Ya tengo cuenta, quiero iniciar sesion</button>
         </form>
       </div>
     </section>
@@ -98,6 +100,41 @@
 
       <aside class="panel summary-panel">
         <div class="panel-heading">
+          <p class="section-kicker">Pagos</p>
+          <h2>Pagar clases</h2>
+        </div>
+
+        <div class="payment-grid">
+          <button class="payment-option" type="button" data-package="Clase individual" data-class-count="1" data-amount="12000">
+            <strong>1 clase</strong>
+            <span>Pago simulado</span>
+            <small>$12.000</small>
+          </button>
+          <button class="payment-option" type="button" data-package="Pack 4 clases" data-class-count="4" data-amount="42000">
+            <strong>4 clases</strong>
+            <span>Pack mensual corto</span>
+            <small>$42.000</small>
+          </button>
+          <button class="payment-option" type="button" data-package="Pack 8 clases" data-class-count="8" data-amount="76000">
+            <strong>8 clases</strong>
+            <span>Pack completo</span>
+            <small>$76.000</small>
+          </button>
+        </div>
+
+        <div id="payment-summary" class="selection-summary">
+          <p>Elige una opcion para simular el pago y guardarlo en tu cuenta.</p>
+        </div>
+
+        <button id="pay-button" class="secondary-button pay-button" type="button" disabled>Simular pago</button>
+
+        <div class="panel-heading reservations-heading">
+          <p class="section-kicker">Historial</p>
+          <h2 id="payments-heading">Mis pagos</h2>
+        </div>
+        <div id="payments-list" class="bookings-list"></div>
+
+        <div class="panel-heading">
           <p class="section-kicker">Paso 3</p>
           <h2>Confirmacion</h2>
         </div>
@@ -105,6 +142,8 @@
         <div id="selection-summary" class="selection-summary">
           <p>Selecciona un horario para ver el resumen de la reserva.</p>
         </div>
+
+        <div id="credits-banner" class="credits-banner"></div>
 
         <div id="status-banner" class="status-banner" aria-live="polite"></div>
         <button id="book-button" class="primary-button" disabled>Confirmar turno</button>
@@ -130,6 +169,15 @@
         <p class="booking-meta"></p>
       </div>
       <button class="secondary-button" type="button">Cancelar</button>
+    </article>
+  </template>
+
+  <template id="payment-card-template">
+    <article class="booking-card">
+      <div>
+        <h3></h3>
+        <p class="booking-meta"></p>
+      </div>
     </article>
   </template>
 

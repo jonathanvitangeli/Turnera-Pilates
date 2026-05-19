@@ -124,11 +124,12 @@ function getSchemaHelpMessage(error, action) {
   if (
     details.includes("column") ||
     details.includes("does not exist") ||
+    details.includes("relation") ||
     details.includes("violates not-null constraint") ||
     details.includes("constraint") ||
     error?.code === "42703"
   ) {
-    return `No se pudo ${action} porque tu tabla bookings parece estar con el esquema viejo. Vuelve a ejecutar neon-schema.sql o recrea las tablas.`;
+    return `No se pudo ${action} porque la base parece estar con un esquema viejo o incompleto. Vuelve a ejecutar neon-schema.sql en Neon.`;
   }
 
   return null;
@@ -202,6 +203,50 @@ function mapBookingRow(row) {
     userId: row.user_id,
     userName: row.user_name,
     userEmail: row.user_email
+  };
+}
+
+function mapPaymentRow(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    userName: row.user_name,
+    userEmail: row.user_email,
+    packageName: row.package_name,
+    classCount: Number(row.class_count || 0),
+    amount: Number(row.amount || 0),
+    paymentMethod: row.payment_method,
+    paymentStatus: row.payment_status,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at)
+  };
+}
+
+async function getUserCredits(userId) {
+  const paymentsResult = await pool.query(
+    `
+      select coalesce(sum(class_count), 0)::int as total_paid_classes
+      from public.payments
+      where user_id = $1 and payment_status = 'approved'
+    `,
+    [userId]
+  );
+
+  const bookingsResult = await pool.query(
+    `
+      select count(*)::int as total_booked_classes
+      from public.bookings
+      where user_id = $1
+    `,
+    [userId]
+  );
+
+  const totalPaidClasses = Number(paymentsResult.rows[0]?.total_paid_classes || 0);
+  const totalBookedClasses = Number(bookingsResult.rows[0]?.total_booked_classes || 0);
+
+  return {
+    totalPaidClasses,
+    totalBookedClasses,
+    availableClasses: Math.max(totalPaidClasses - totalBookedClasses, 0)
   };
 }
 
@@ -384,6 +429,10 @@ async function listBookings(req, res) {
       [user.role, user.id]
     );
 
+    const credits = isAdmin
+      ? null
+      : await getUserCredits(user.id);
+
     sendJson(res, 200, {
       bookings: result.rows.map((row) => {
         const booking = mapBookingRow(row);
@@ -397,7 +446,8 @@ async function listBookings(req, res) {
         date: normalizeDateValue(row.booking_date),
         time: row.booking_time,
         count: Number(row.slot_count || 0)
-      }))
+      })),
+      credits
     });
   } catch (error) {
     const schemaMessage = getSchemaHelpMessage(error, "leer las reservas");
@@ -416,6 +466,14 @@ async function createBooking(req, res) {
     const user = await getCurrentUser(req);
     if (!user) {
       sendJson(res, 401, { error: "Inicia sesion para reservar." });
+      return;
+    }
+
+    const credits = await getUserCredits(user.id);
+    if (credits.availableClasses <= 0) {
+      sendJson(res, 409, {
+        error: "No tienes clases pagadas disponibles. Registra un pago antes de reservar."
+      });
       return;
     }
 
@@ -505,6 +563,106 @@ async function deleteBooking(req, res, id) {
   }
 }
 
+async function listPayments(req, res) {
+  if (!requireServerConfig(res)) {
+    return;
+  }
+
+  try {
+    const user = await getCurrentUser(req);
+    if (!user) {
+      sendJson(res, 401, { error: "Inicia sesion para ver pagos." });
+      return;
+    }
+
+    const isAdmin = user.role === "admin";
+    const result = await pool.query(
+      `
+        select
+          p.id,
+          p.user_id,
+          p.package_name,
+          p.class_count,
+          p.amount,
+          p.payment_method,
+          p.payment_status,
+          p.created_at,
+          u.name as user_name,
+          u.email as user_email
+        from public.payments p
+        join public.users u on u.id = p.user_id
+        where ($1::text = 'admin' or p.user_id = $2)
+        order by p.created_at desc
+      `,
+      [user.role, user.id]
+    );
+
+    sendJson(res, 200, {
+      payments: result.rows.map((row) => {
+        const payment = mapPaymentRow(row);
+        if (!isAdmin) {
+          delete payment.userEmail;
+        }
+        return payment;
+      })
+    });
+  } catch (error) {
+    const schemaMessage = getSchemaHelpMessage(error, "leer los pagos");
+    sendJson(res, 500, {
+      error: schemaMessage || error.message || "No pude leer los pagos. Revisa que hayas ejecutado neon-schema.sql en Neon."
+    });
+  }
+}
+
+async function createPayment(req, res) {
+  if (!requireServerConfig(res)) {
+    return;
+  }
+
+  try {
+    const user = await getCurrentUser(req);
+    if (!user) {
+      sendJson(res, 401, { error: "Inicia sesion para registrar pagos." });
+      return;
+    }
+
+    const body = await readBody(req);
+    const { packageName, classCount, amount } = body;
+
+    if (!packageName || !Number.isInteger(classCount) || classCount <= 0 || typeof amount !== "number" || amount < 0) {
+      sendJson(res, 400, { error: "Faltan datos validos para registrar el pago." });
+      return;
+    }
+
+    const result = await pool.query(
+      `
+        insert into public.payments (
+          user_id,
+          package_name,
+          class_count,
+          amount,
+          payment_method,
+          payment_status
+        )
+        values ($1, $2, $3, $4, 'simulado', 'approved')
+        returning id, user_id, package_name, class_count, amount, payment_method, payment_status, created_at
+      `,
+      [user.id, packageName, classCount, amount]
+    );
+
+    sendJson(res, 201, {
+      payment: mapPaymentRow({
+        ...result.rows[0],
+        user_name: user.name,
+        user_email: user.email
+      })
+    });
+  } catch (error) {
+    const schemaMessage = getSchemaHelpMessage(error, "registrar el pago");
+    sendJson(res, 500, { error: schemaMessage || error.message || "No se pudo registrar el pago simulado." });
+  }
+}
+
 async function handleApiRequest(req, res, pathname) {
   if (req.method === "POST" && pathname === "/api/register") {
     await handleRegister(req, res);
@@ -539,6 +697,16 @@ async function handleApiRequest(req, res, pathname) {
   if (req.method === "DELETE" && pathname.startsWith("/api/bookings/")) {
     const id = pathname.replace("/api/bookings/", "");
     await deleteBooking(req, res, id);
+    return true;
+  }
+
+  if (req.method === "GET" && pathname === "/api/payments") {
+    await listPayments(req, res);
+    return true;
+  }
+
+  if (req.method === "POST" && pathname === "/api/payments") {
+    await createPayment(req, res);
     return true;
   }
 

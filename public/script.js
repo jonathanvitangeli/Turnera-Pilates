@@ -39,7 +39,12 @@ const teacherSelect = document.getElementById("teacher-select");
 const dateInput = document.getElementById("date-input");
 const teacherSpotlight = document.getElementById("teacher-spotlight");
 const slotsGrid = document.getElementById("slots-grid");
+const paymentSummary = document.getElementById("payment-summary");
+const payButton = document.getElementById("pay-button");
+const paymentsList = document.getElementById("payments-list");
+const paymentTemplate = document.getElementById("payment-card-template");
 const selectionSummary = document.getElementById("selection-summary");
+const creditsBanner = document.getElementById("credits-banner");
 const statusBanner = document.getElementById("status-banner");
 const bookButton = document.getElementById("book-button");
 const bookingsList = document.getElementById("bookings-list");
@@ -53,6 +58,10 @@ const registerForm = document.getElementById("register-form");
 const loginForm = document.getElementById("login-form");
 const authView = document.getElementById("auth-view");
 const appView = document.getElementById("app-view");
+const showRegisterButton = document.getElementById("show-register-button");
+const showLoginButton = document.getElementById("show-login-button");
+const paymentOptions = document.querySelectorAll(".payment-option");
+const paymentsHeading = document.getElementById("payments-heading");
 
 const state = {
   selectedTeacherId: teachers[0].id,
@@ -60,10 +69,19 @@ const state = {
   selectedTime: "",
   bookings: [],
   slotCounts: [],
+  payments: [],
+  selectedPayment: null,
+  credits: null,
   loading: false,
   me: null,
   apiEnabled: true
 };
+
+function showAuthMode(mode) {
+  const registerMode = mode === "register";
+  registerForm.hidden = !registerMode;
+  loginForm.hidden = registerMode;
+}
 
 function setStatus(message, type = "") {
   statusBanner.textContent = message;
@@ -193,6 +211,12 @@ function updateSelectionSummary() {
     return;
   }
 
+  if (state.me.role !== "admin" && (state.credits?.availableClasses ?? 0) <= 0) {
+    selectionSummary.innerHTML = `<p>No tienes clases pagadas disponibles para reservar.</p>`;
+    bookButton.disabled = true;
+    return;
+  }
+
   if (!hasSelection) {
     selectionSummary.innerHTML = `<p>Selecciona un horario disponible para ver el resumen de tu clase.</p>`;
     bookButton.disabled = true;
@@ -209,15 +233,41 @@ function updateSelectionSummary() {
   bookButton.disabled = state.loading || !state.apiEnabled;
 }
 
+function renderCredits() {
+  if (!state.me) {
+    creditsBanner.innerHTML = "<p>Inicia sesion para ver tu saldo de clases.</p>";
+    creditsBanner.className = "credits-banner";
+    return;
+  }
+
+  if (state.me.role === "admin") {
+    creditsBanner.innerHTML = "<p>Vista admin: las reservas muestran todos los turnos y pagos.</p>";
+    creditsBanner.className = "credits-banner";
+    return;
+  }
+
+  const available = state.credits?.availableClasses ?? 0;
+  const paid = state.credits?.totalPaidClasses ?? 0;
+  const booked = state.credits?.totalBookedClasses ?? 0;
+
+  creditsBanner.innerHTML = `
+    <p><strong>Clases disponibles:</strong> ${available}</p>
+    <p>Pagadas: ${paid} · Reservadas: ${booked}</p>
+  `;
+  creditsBanner.className = `credits-banner ${available > 0 ? "is-positive" : "is-warning"}`;
+}
+
 function renderSession() {
   if (!state.me) {
     accountTitle.textContent = "Sin sesion iniciada";
     accountDetail.textContent = "Registrate o inicia sesion para empezar a reservar.";
     viewerBadge.textContent = "Vista publica";
     bookingsHeading.textContent = "Reservas guardadas";
+    paymentsHeading.textContent = "Mis pagos";
     logoutButton.hidden = true;
     authView.hidden = false;
     appView.hidden = true;
+    showAuthMode("login");
     return;
   }
 
@@ -229,6 +279,7 @@ function renderSession() {
     : "Puedes reservar y gestionar solo tus propios turnos.";
   viewerBadge.textContent = state.me.role === "admin" ? "Vista admin" : "Vista usuario";
   bookingsHeading.textContent = state.me.role === "admin" ? "Todas las reservas" : "Mis reservas";
+  paymentsHeading.textContent = state.me.role === "admin" ? "Todos los pagos" : "Mis pagos";
   logoutButton.hidden = false;
   authView.hidden = true;
   appView.hidden = false;
@@ -265,32 +316,96 @@ function renderBookings() {
   });
 }
 
+function updatePaymentSummary() {
+  if (!state.me) {
+    paymentSummary.innerHTML = "<p>Inicia sesion para simular pagos de clases.</p>";
+    payButton.disabled = true;
+    return;
+  }
+
+  if (!state.selectedPayment) {
+    paymentSummary.innerHTML = "<p>Elige una opcion para simular el pago y guardarlo en tu cuenta.</p>";
+    payButton.disabled = true;
+    return;
+  }
+
+  paymentSummary.innerHTML = `
+    <p class="summary-highlight">Pago listo para registrar</p>
+    <p><strong>Plan:</strong> ${state.selectedPayment.packageName}</p>
+    <p><strong>Clases:</strong> ${state.selectedPayment.classCount}</p>
+    <p><strong>Monto:</strong> ${formatCurrency(state.selectedPayment.amount)}</p>
+    <p><strong>Metodo:</strong> Simulado</p>
+  `;
+  payButton.disabled = state.loading || !state.apiEnabled;
+}
+
+function renderPaymentOptions() {
+  paymentOptions.forEach((button) => {
+    const active =
+      state.selectedPayment &&
+      state.selectedPayment.packageName === button.dataset.package;
+
+    button.classList.toggle("selected", Boolean(active));
+  });
+}
+
+function renderPayments() {
+  paymentsList.innerHTML = "";
+
+  if (!state.payments.length) {
+    paymentsList.innerHTML = '<p class="empty-state">Todavia no hay pagos registrados.</p>';
+    return;
+  }
+
+  state.payments.forEach((payment) => {
+    const fragment = paymentTemplate.content.cloneNode(true);
+    fragment.querySelector("h3").textContent = payment.packageName;
+
+    const ownerPart = payment.userName
+      ? ` · ${payment.userName}${payment.userEmail ? ` (${payment.userEmail})` : ""}`
+      : "";
+
+    fragment.querySelector(".booking-meta").textContent =
+      `${payment.classCount} clases · ${formatCurrency(payment.amount)} · ${formatDateTime(payment.createdAt)}${ownerPart}`;
+
+    paymentsList.appendChild(fragment);
+  });
+}
+
 function setLoading(isLoading) {
   state.loading = isLoading;
   teacherSelect.disabled = isLoading;
   dateInput.disabled = isLoading;
   bookButton.disabled = isLoading || !state.selectedTime || !state.apiEnabled || !state.me;
+  payButton.disabled = isLoading || !state.selectedPayment || !state.apiEnabled || !state.me;
 }
 
 async function request(path, options = {}) {
-  const response = await fetch(path, {
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers ?? {})
-    },
-    ...options
-  });
+  let response;
+  try {
+    response = await fetch(path, {
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers ?? {})
+      },
+      ...options
+    });
+  } catch (error) {
+    throw new Error(`No se pudo conectar con el servidor: ${error.message}`);
+  }
 
   let payload = null;
+  let rawText = "";
   try {
-    payload = await response.json();
+    rawText = await response.text();
+    payload = rawText ? JSON.parse(rawText) : null;
   } catch (error) {
     payload = null;
   }
 
   if (!response.ok) {
-    throw new Error(payload?.error || "Ocurrio un error inesperado.");
+    throw new Error(payload?.error || rawText || `Error ${response.status}`);
   }
 
   return payload;
@@ -311,9 +426,14 @@ async function loadSession() {
 async function fetchBookings() {
   if (!state.me) {
     state.bookings = [];
+    state.payments = [];
+    state.credits = null;
     state.apiEnabled = true;
     renderBookings();
+    renderPayments();
+    renderCredits();
     renderSlots();
+    updatePaymentSummary();
     updateSelectionSummary();
     return;
   }
@@ -321,20 +441,42 @@ async function fetchBookings() {
   setLoading(true);
   setStatus("Conectando con Neon...");
 
+  let paymentsLoaded = false;
+
   try {
-    const payload = await request("/api/bookings");
-    state.bookings = payload.bookings;
-    state.slotCounts = payload.slotCounts || [];
+    const bookingsPayload = await request("/api/bookings");
+    state.bookings = bookingsPayload.bookings;
+    state.slotCounts = bookingsPayload.slotCounts || [];
+    state.credits = bookingsPayload.credits || null;
     state.apiEnabled = true;
-    clearStatus();
   } catch (error) {
     state.bookings = [];
     state.slotCounts = [];
+    state.credits = null;
     state.apiEnabled = false;
     setStatus(error.message, "is-error");
   } finally {
+    try {
+      const paymentsPayload = await request("/api/payments");
+      state.payments = paymentsPayload.payments || [];
+      paymentsLoaded = true;
+    } catch (error) {
+      state.payments = [];
+      if (state.apiEnabled) {
+        setStatus("Las reservas funcionan, pero falta crear la tabla payments en Neon o revisar el endpoint de pagos.", "is-error");
+      }
+    }
+
+    if (state.apiEnabled && paymentsLoaded) {
+      clearStatus();
+    }
+
     setLoading(false);
     renderBookings();
+    renderPayments();
+    renderCredits();
+    renderPaymentOptions();
+    updatePaymentSummary();
     renderSlots();
     updateSelectionSummary();
   }
@@ -346,6 +488,12 @@ async function createBooking() {
   }
 
   const teacher = getSelectedTeacher();
+
+  if (state.me.role !== "admin" && (state.credits?.availableClasses ?? 0) <= 0) {
+    setStatus("No tienes clases pagadas disponibles. Registra un pago antes de reservar.", "is-error");
+    updateSelectionSummary();
+    return;
+  }
 
   if (isSlotBooked(teacher.id, state.selectedDate, state.selectedTime)) {
     setStatus("Ya tienes una reserva para ese horario. Elige otro turno disponible.", "is-error");
@@ -414,6 +562,7 @@ async function handleRegister(event) {
       body: JSON.stringify(payload)
     });
     registerForm.reset();
+    showAuthMode("login");
     await loadSession();
     await fetchBookings();
     setStatus("Cuenta creada e inicio de sesion correcto.", "is-success");
@@ -442,7 +591,10 @@ async function handleLogin(event) {
     await fetchBookings();
     setStatus("Sesion iniciada correctamente.", "is-success");
   } catch (error) {
-    setStatus(error.message, "is-error");
+    const message = error.message === "Credenciales invalidas."
+      ? "Credenciales invalidas. Si esa cuenta fue creada antes de los cambios en la base o en la configuracion, vuelve a registrarte."
+      : error.message;
+    setStatus(message, "is-error");
   }
 }
 
@@ -457,11 +609,40 @@ async function handleLogout() {
   state.selectedTime = "";
   state.bookings = [];
   state.slotCounts = [];
+  state.payments = [];
+  state.selectedPayment = null;
+  state.credits = null;
   renderSession();
   renderBookings();
+  renderPayments();
+  renderCredits();
+  renderPaymentOptions();
+  updatePaymentSummary();
   renderSlots();
   updateSelectionSummary();
   setStatus("Sesion cerrada.", "is-success");
+}
+
+async function createPayment() {
+  if (!state.selectedPayment || !state.me) {
+    return;
+  }
+
+  setLoading(true);
+  setStatus("Registrando pago simulado...");
+
+  try {
+    await request("/api/payments", {
+      method: "POST",
+      body: JSON.stringify(state.selectedPayment)
+    });
+    state.selectedPayment = null;
+    await fetchBookings();
+    setStatus("Pago simulado guardado correctamente.", "is-success");
+  } catch (error) {
+    setLoading(false);
+    setStatus(error.message, "is-error");
+  }
 }
 
 function formatDate(dateString) {
@@ -470,6 +651,23 @@ function formatDate(dateString) {
     day: "numeric",
     month: "long"
   }).format(new Date(`${dateString}T12:00:00`));
+}
+
+function formatDateTime(dateString) {
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(dateString));
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    maximumFractionDigits: 0
+  }).format(value);
 }
 
 function dayName(dayIndex) {
@@ -505,19 +703,46 @@ slotsGrid.addEventListener("click", (event) => {
   updateSelectionSummary();
 });
 
+paymentOptions.forEach((button) => {
+  button.addEventListener("click", () => {
+    clearStatus();
+    state.selectedPayment = {
+      packageName: button.dataset.package,
+      classCount: Number(button.dataset.classCount),
+      amount: Number(button.dataset.amount)
+    };
+    renderPaymentOptions();
+    updatePaymentSummary();
+  });
+});
+
 bookButton.addEventListener("click", createBooking);
+payButton.addEventListener("click", createPayment);
 registerForm.addEventListener("submit", handleRegister);
 loginForm.addEventListener("submit", handleLogin);
 logoutButton.addEventListener("click", handleLogout);
+showRegisterButton.addEventListener("click", () => {
+  clearStatus();
+  showAuthMode("register");
+});
+showLoginButton.addEventListener("click", () => {
+  clearStatus();
+  showAuthMode("login");
+});
 
 async function init() {
   renderTeacherOptions();
   setDefaultDate();
   renderTeacherSpotlight();
   renderSlots();
+  renderPaymentOptions();
+  showAuthMode("login");
   renderSession();
+  renderCredits();
+  updatePaymentSummary();
   updateSelectionSummary();
   renderBookings();
+  renderPayments();
   await loadSession();
   await fetchBookings();
 }
