@@ -681,16 +681,15 @@ function requireAgentApiKey(req, res) {
   return true;
 }
 
-function parseQuery(pathname) {
-  const idx = pathname.indexOf("?");
-  if (idx < 0) return {};
-  return Object.fromEntries(new URLSearchParams(pathname.slice(idx + 1)));
+function parseQuery(req) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  return Object.fromEntries(url.searchParams);
 }
 
 // GET /api/agent/socio?email=X  → datos del socio
 async function agentGetSocio(req, res, pathname) {
   if (!requireAgentApiKey(req, res)) return;
-  const { email } = parseQuery(pathname);
+  const { email } = parseQuery(req);
   if (!email) return sendJson(res, 400, { error: "Falta el parámetro email." });
 
   try {
@@ -735,7 +734,7 @@ async function agentResetAcceso(req, res) {
 // GET /api/agent/turnos?email=X  → reservas del socio
 async function agentGetTurnos(req, res, pathname) {
   if (!requireAgentApiKey(req, res)) return;
-  const { email } = parseQuery(pathname);
+  const { email } = parseQuery(req);
   if (!email) return sendJson(res, 400, { error: "Falta el parámetro email." });
 
   try {
@@ -773,7 +772,7 @@ async function agentGetTurnos(req, res, pathname) {
 // GET /api/agent/pagos?email=X  → pagos del socio
 async function agentGetPagos(req, res, pathname) {
   if (!requireAgentApiKey(req, res)) return;
-  const { email } = parseQuery(pathname);
+  const { email } = parseQuery(req);
   if (!email) return sendJson(res, 400, { error: "Falta el parámetro email." });
 
   try {
@@ -805,7 +804,7 @@ async function agentGetPagos(req, res, pathname) {
 // GET /api/agent/disponibilidad?teacherId=X&date=Y&time=Z  → cupo disponible en un turno
 async function agentGetDisponibilidad(req, res, pathname) {
   if (!requireAgentApiKey(req, res)) return;
-  const { teacherId, date, time } = parseQuery(pathname);
+  const { teacherId, date, time } = parseQuery(req);
   if (!teacherId || !date || !time)
     return sendJson(res, 400, { error: "Faltan parámetros: teacherId, date, time." });
 
