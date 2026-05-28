@@ -663,6 +663,195 @@ async function createPayment(req, res) {
   }
 }
 
+// ============================================================
+// MIDDLEWARE Y ENDPOINTS PARA AGENTES (API KEY)
+// ============================================================
+
+function requireAgentApiKey(req, res) {
+  const agentApiKey = process.env.AGENT_API_KEY || "";
+  if (!agentApiKey) {
+    sendJson(res, 500, { error: "AGENT_API_KEY no configurada en el servidor." });
+    return false;
+  }
+  const provided = req.headers["x-api-key"] || "";
+  if (provided !== agentApiKey) {
+    sendJson(res, 401, { error: "API key inválida o ausente." });
+    return false;
+  }
+  return true;
+}
+
+function parseQuery(pathname) {
+  const idx = pathname.indexOf("?");
+  if (idx < 0) return {};
+  return Object.fromEntries(new URLSearchParams(pathname.slice(idx + 1)));
+}
+
+// GET /api/agent/socio?email=X  → datos del socio
+async function agentGetSocio(req, res, pathname) {
+  if (!requireAgentApiKey(req, res)) return;
+  const { email } = parseQuery(pathname);
+  if (!email) return sendJson(res, 400, { error: "Falta el parámetro email." });
+
+  try {
+    const result = await pool.query(
+      "SELECT id, name, email, role FROM public.users WHERE email = lower($1) LIMIT 1",
+      [email]
+    );
+    if (!result.rows.length) return sendJson(res, 404, { error: "Socio no encontrado." });
+    sendJson(res, 200, { socio: result.rows[0] });
+  } catch (error) {
+    sendJson(res, 500, { error: "No se pudo consultar el socio." });
+  }
+}
+
+// POST /api/agent/reset-acceso  → resetear contraseña del socio
+// Body: { email }
+async function agentResetAcceso(req, res) {
+  if (!requireAgentApiKey(req, res)) return;
+  const body = await readBody(req);
+  const { email } = body;
+  if (!email) return sendJson(res, 400, { error: "Falta el campo email." });
+
+  try {
+    const tempPassword = crypto.randomBytes(4).toString("hex"); // ej: "a3f2b1c9"
+    const passwordHash = await createPasswordHash(tempPassword);
+    const result = await pool.query(
+      "UPDATE public.users SET password_hash = $1 WHERE email = lower($2) RETURNING id, name, email",
+      [passwordHash, email]
+    );
+    if (!result.rowCount) return sendJson(res, 404, { error: "Socio no encontrado." });
+    sendJson(res, 200, {
+      ok: true,
+      socio: result.rows[0],
+      tempPassword,
+      mensaje: `Acceso reseteado. Contraseña temporal: ${tempPassword}. El socio debe cambiarla al ingresar.`
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: "No se pudo resetear el acceso." });
+  }
+}
+
+// GET /api/agent/turnos?email=X  → reservas del socio
+async function agentGetTurnos(req, res, pathname) {
+  if (!requireAgentApiKey(req, res)) return;
+  const { email } = parseQuery(pathname);
+  if (!email) return sendJson(res, 400, { error: "Falta el parámetro email." });
+
+  try {
+    const userResult = await pool.query(
+      "SELECT id FROM public.users WHERE email = lower($1) LIMIT 1",
+      [email]
+    );
+    if (!userResult.rows.length) return sendJson(res, 404, { error: "Socio no encontrado." });
+    const userId = userResult.rows[0].id;
+
+    const result = await pool.query(
+      `SELECT b.id, b.teacher_id, b.teacher_name, b.specialty,
+              b.booking_date, b.booking_time,
+              counts.slot_count
+       FROM public.bookings b
+       JOIN (
+         SELECT teacher_id, booking_date, booking_time, count(*)::int AS slot_count
+         FROM public.bookings GROUP BY teacher_id, booking_date, booking_time
+       ) counts
+         ON counts.teacher_id = b.teacher_id
+        AND counts.booking_date = b.booking_date
+        AND counts.booking_time = b.booking_time
+       WHERE b.user_id = $1
+       ORDER BY b.booking_date, b.booking_time`,
+      [userId]
+    );
+
+    const credits = await getUserCredits(userId);
+    sendJson(res, 200, { turnos: result.rows.map(mapBookingRow), credits });
+  } catch (error) {
+    sendJson(res, 500, { error: "No se pudo consultar los turnos." });
+  }
+}
+
+// GET /api/agent/pagos?email=X  → pagos del socio
+async function agentGetPagos(req, res, pathname) {
+  if (!requireAgentApiKey(req, res)) return;
+  const { email } = parseQuery(pathname);
+  if (!email) return sendJson(res, 400, { error: "Falta el parámetro email." });
+
+  try {
+    const userResult = await pool.query(
+      "SELECT id FROM public.users WHERE email = lower($1) LIMIT 1",
+      [email]
+    );
+    if (!userResult.rows.length) return sendJson(res, 404, { error: "Socio no encontrado." });
+    const userId = userResult.rows[0].id;
+
+    const result = await pool.query(
+      `SELECT p.id, p.package_name, p.class_count, p.amount,
+              p.payment_method, p.payment_status, p.created_at,
+              u.name AS user_name, u.email AS user_email
+       FROM public.payments p
+       JOIN public.users u ON u.id = p.user_id
+       WHERE p.user_id = $1
+       ORDER BY p.created_at DESC`,
+      [userId]
+    );
+
+    const credits = await getUserCredits(userId);
+    sendJson(res, 200, { pagos: result.rows.map(mapPaymentRow), credits });
+  } catch (error) {
+    sendJson(res, 500, { error: "No se pudo consultar los pagos." });
+  }
+}
+
+// GET /api/agent/disponibilidad?teacherId=X&date=Y&time=Z  → cupo disponible en un turno
+async function agentGetDisponibilidad(req, res, pathname) {
+  if (!requireAgentApiKey(req, res)) return;
+  const { teacherId, date, time } = parseQuery(pathname);
+  if (!teacherId || !date || !time)
+    return sendJson(res, 400, { error: "Faltan parámetros: teacherId, date, time." });
+
+  try {
+    const result = await pool.query(
+      "SELECT count(*)::int AS ocupados FROM public.bookings WHERE teacher_id = $1 AND booking_date = $2 AND booking_time = $3",
+      [teacherId, date, time]
+    );
+    const ocupados = result.rows[0].ocupados;
+    const capacidad = 5;
+    sendJson(res, 200, {
+      teacherId, date, time,
+      ocupados,
+      capacidad,
+      disponibles: capacidad - ocupados,
+      disponible: ocupados < capacidad
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: "No se pudo consultar la disponibilidad." });
+  }
+}
+
+// PUT /api/agent/turnos/:id/instructor  → reasignar instructor a un turno
+// Body: { teacherId, teacherName, specialty }
+async function agentReasignarInstructor(req, res, id) {
+  if (!requireAgentApiKey(req, res)) return;
+  const body = await readBody(req);
+  const { teacherId, teacherName, specialty } = body;
+  if (!teacherId || !teacherName || !specialty)
+    return sendJson(res, 400, { error: "Faltan campos: teacherId, teacherName, specialty." });
+
+  try {
+    const result = await pool.query(
+      `UPDATE public.bookings
+       SET teacher_id = $1, teacher_name = $2, specialty = $3
+       WHERE id = $4
+       RETURNING id, user_id, teacher_id, teacher_name, specialty, booking_date, booking_time`,
+      [teacherId, teacherName, specialty, id]
+    );
+    if (!result.rowCount) return sendJson(res, 404, { error: "Turno no encontrado." });
+    sendJson(res, 200, { ok: true, turno: mapBookingRow({ ...result.rows[0], slot_count: 0 }) });
+  } catch (error) {
+    sendJson(res, 500, { error: "No se pudo reasignar el instructor." });
+  }
+}
+
 async function handleApiRequest(req, res, pathname) {
   if (req.method === "POST" && pathname === "/api/register") {
     await handleRegister(req, res);
@@ -707,6 +896,39 @@ async function handleApiRequest(req, res, pathname) {
 
   if (req.method === "POST" && pathname === "/api/payments") {
     await createPayment(req, res);
+    return true;
+  }
+
+  // ── Endpoints para agentes (requieren x-api-key) ──────────────────────────
+
+  if (req.method === "GET" && pathname.startsWith("/api/agent/socio")) {
+    await agentGetSocio(req, res, pathname);
+    return true;
+  }
+
+  if (req.method === "POST" && pathname === "/api/agent/reset-acceso") {
+    await agentResetAcceso(req, res);
+    return true;
+  }
+
+  if (req.method === "GET" && pathname.startsWith("/api/agent/turnos")) {
+    await agentGetTurnos(req, res, pathname);
+    return true;
+  }
+
+  if (req.method === "GET" && pathname.startsWith("/api/agent/pagos")) {
+    await agentGetPagos(req, res, pathname);
+    return true;
+  }
+
+  if (req.method === "GET" && pathname.startsWith("/api/agent/disponibilidad")) {
+    await agentGetDisponibilidad(req, res, pathname);
+    return true;
+  }
+
+  if (req.method === "PUT" && pathname.startsWith("/api/agent/turnos/") && pathname.endsWith("/instructor")) {
+    const id = pathname.split("/")[4];
+    await agentReasignarInstructor(req, res, id);
     return true;
   }
 
