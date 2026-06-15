@@ -663,6 +663,151 @@ async function createPayment(req, res) {
   }
 }
 
+function requireAgentApiKey(req, res) {
+  const expectedKey = process.env.AGENT_API_KEY;
+  if (!expectedKey) {
+    sendJson(res, 500, { error: "AGENT_API_KEY no configurada en el servidor." });
+    return false;
+  }
+  const providedKey = req.headers["x-api-key"];
+  if (providedKey !== expectedKey) {
+    sendJson(res, 401, { error: "API key invalida o ausente." });
+    return false;
+  }
+  return true;
+}
+
+async function agentResetAcceso(req, res) {
+  if (!requireServerConfig(res) || !requireAgentApiKey(req, res)) return;
+
+  try {
+    const body = await readBody(req);
+    const { email } = body;
+
+    if (!email) {
+      sendJson(res, 400, { error: "Falta el campo 'email'." });
+      return;
+    }
+
+    const userResult = await pool.query(
+      "SELECT id, name, email FROM public.users WHERE email = $1 LIMIT 1",
+      [email.toLowerCase().trim()]
+    );
+
+    if (!userResult.rowCount) {
+      sendJson(res, 404, { error: `No existe un usuario con email ${email}.` });
+      return;
+    }
+
+    const user = userResult.rows[0];
+    const tempPassword = `Tmp${Math.random().toString(36).slice(2, 8)}!`;
+    const newHash = await createPasswordHash(tempPassword);
+
+    await pool.query(
+      "UPDATE public.users SET password_hash = $1 WHERE id = $2",
+      [newHash, user.id]
+    );
+
+    sendJson(res, 200, {
+      ok: true,
+      mensaje: `Acceso reseteado para ${user.name} (${user.email}).`,
+      tempPassword
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: error.message || "No se pudo resetear el acceso." });
+  }
+}
+
+async function agentGetPagos(req, res, searchParams) {
+  if (!requireServerConfig(res) || !requireAgentApiKey(req, res)) return;
+
+  try {
+    const email = searchParams.get("email");
+    if (!email) {
+      sendJson(res, 400, { error: "Falta el parametro 'email'." });
+      return;
+    }
+
+    const userResult = await pool.query(
+      "SELECT id FROM public.users WHERE email = $1 LIMIT 1",
+      [email.toLowerCase().trim()]
+    );
+
+    if (!userResult.rowCount) {
+      sendJson(res, 404, { error: `No existe un usuario con email ${email}.` });
+      return;
+    }
+
+    const userId = userResult.rows[0].id;
+
+    const paymentsResult = await pool.query(
+      `SELECT id, package_name, class_count, amount, payment_method, payment_status, created_at
+       FROM public.payments WHERE user_id = $1 ORDER BY created_at DESC`,
+      [userId]
+    );
+
+    const credits = await getUserCredits(userId);
+
+    sendJson(res, 200, {
+      pagos: paymentsResult.rows.map((row) => ({
+        id: row.id,
+        packageName: row.package_name,
+        classCount: Number(row.class_count),
+        amount: Number(row.amount),
+        paymentMethod: row.payment_method,
+        paymentStatus: row.payment_status,
+        createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at)
+      })),
+      credits
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: error.message || "No se pudo consultar los pagos." });
+  }
+}
+
+async function agentGetTurnos(req, res, searchParams) {
+  if (!requireServerConfig(res) || !requireAgentApiKey(req, res)) return;
+
+  try {
+    const email = searchParams.get("email");
+    if (!email) {
+      sendJson(res, 400, { error: "Falta el parametro 'email'." });
+      return;
+    }
+
+    const userResult = await pool.query(
+      "SELECT id FROM public.users WHERE email = $1 LIMIT 1",
+      [email.toLowerCase().trim()]
+    );
+
+    if (!userResult.rowCount) {
+      sendJson(res, 404, { error: `No existe un usuario con email ${email}.` });
+      return;
+    }
+
+    const userId = userResult.rows[0].id;
+
+    const bookingsResult = await pool.query(
+      `SELECT id, teacher_id, teacher_name, specialty, booking_date, booking_time
+       FROM public.bookings WHERE user_id = $1 ORDER BY booking_date ASC, booking_time ASC`,
+      [userId]
+    );
+
+    sendJson(res, 200, {
+      turnos: bookingsResult.rows.map((row) => ({
+        id: row.id,
+        teacherId: row.teacher_id,
+        teacherName: row.teacher_name,
+        specialty: row.specialty,
+        date: normalizeDateValue(row.booking_date),
+        time: row.booking_time
+      }))
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: error.message || "No se pudo consultar los turnos." });
+  }
+}
+
 async function handleApiRequest(req, res, pathname) {
   if (req.method === "POST" && pathname === "/api/register") {
     await handleRegister(req, res);
@@ -707,6 +852,24 @@ async function handleApiRequest(req, res, pathname) {
 
   if (req.method === "POST" && pathname === "/api/payments") {
     await createPayment(req, res);
+    return true;
+  }
+
+  // ── Agent endpoints (require x-api-key header) ──────────────────────────────
+  if (req.method === "POST" && pathname === "/api/agent/reset-acceso") {
+    await agentResetAcceso(req, res);
+    return true;
+  }
+
+  if (req.method === "GET" && pathname === "/api/agent/pagos") {
+    const url = new URL(req.url, "http://localhost");
+    await agentGetPagos(req, res, url.searchParams);
+    return true;
+  }
+
+  if (req.method === "GET" && pathname === "/api/agent/turnos") {
+    const url = new URL(req.url, "http://localhost");
+    await agentGetTurnos(req, res, url.searchParams);
     return true;
   }
 
