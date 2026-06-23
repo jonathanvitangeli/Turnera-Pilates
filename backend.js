@@ -776,7 +776,7 @@ async function agentGetTurnos(req, res, searchParams) {
     }
 
     const userResult = await pool.query(
-      "SELECT id FROM public.users WHERE email = $1 LIMIT 1",
+      "SELECT id, email FROM public.users WHERE email = $1 LIMIT 1",
       [email.toLowerCase().trim()]
     );
 
@@ -785,30 +785,39 @@ async function agentGetTurnos(req, res, searchParams) {
       return;
     }
 
-    const userId = userResult.rows[0].id;
+    const user = userResult.rows[0];
 
     const bookingsResult = await pool.query(
-      `SELECT id, teacher_id, teacher_name, specialty, booking_date, booking_time
+      `SELECT id, teacher_id, teacher_name, specialty, booking_date, booking_time, user_id, user_name, user_email
        FROM public.bookings WHERE user_id = $1 ORDER BY booking_date ASC, booking_time ASC`,
-      [userId]
+      [userResult.rows[0].id]
     );
 
     sendJson(res, 200, {
-      turnos: bookingsResult.rows.map((row) => ({
-        id: row.id,
-        teacherId: row.teacher_id,
-        teacherName: row.teacher_name,
-        specialty: row.specialty,
-        date: normalizeDateValue(row.booking_date),
-        time: row.booking_time
-      }))
+      email: user.email,
+      turnos: bookingsResult.rows.map(mapBookingRow)
     });
   } catch (error) {
     sendJson(res, 500, { error: error.message || "No se pudo consultar los turnos." });
   }
 }
 
-async function handleApiRequest(req, res, pathname) {
+function normalizeRequestPath(rawPathOrUrl, req) {
+  if (!rawPathOrUrl) {
+    return "/";
+  }
+
+  try {
+    const baseUrl = `https://${req.headers.host || "localhost"}`;
+    return new URL(rawPathOrUrl, baseUrl).pathname;
+  } catch (error) {
+    return String(rawPathOrUrl).split("?")[0] || "/";
+  }
+}
+
+async function handleApiRequest(req, res, pathnameOrUrl) {
+  const pathname = normalizeRequestPath(pathnameOrUrl, req);
+
   if (req.method === "POST" && pathname === "/api/register") {
     await handleRegister(req, res);
     return true;
@@ -855,7 +864,7 @@ async function handleApiRequest(req, res, pathname) {
     return true;
   }
 
-  // ── Agent endpoints (require x-api-key header) ──────────────────────────────
+  // Agent endpoints (require x-api-key header)
   if (req.method === "POST" && pathname === "/api/agent/reset-acceso") {
     await agentResetAcceso(req, res);
     return true;
