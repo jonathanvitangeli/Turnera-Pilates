@@ -788,9 +788,21 @@ async function agentGetTurnos(req, res, searchParams) {
     const user = userResult.rows[0];
 
     const bookingsResult = await pool.query(
-      `SELECT id, teacher_id, teacher_name, specialty, booking_date, booking_time, user_id, user_name, user_email
-       FROM public.bookings WHERE user_id = $1 ORDER BY booking_date ASC, booking_time ASC`,
-      [userResult.rows[0].id]
+      `SELECT
+         b.id,
+         b.teacher_id,
+         b.teacher_name,
+         b.specialty,
+         b.booking_date,
+         b.booking_time,
+         b.user_id,
+         u.name AS user_name,
+         u.email AS user_email
+       FROM public.bookings b
+       JOIN public.users u ON u.id = b.user_id
+       WHERE b.user_id = $1
+       ORDER BY b.booking_date ASC, b.booking_time ASC`,
+      [user.id]
     );
 
     sendJson(res, 200, {
